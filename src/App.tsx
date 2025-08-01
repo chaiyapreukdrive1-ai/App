@@ -9,7 +9,7 @@ import { Login } from './pages/Login';
 import { VoiceEngineManager } from './services/voiceEngine';
 import { OpenAIService } from './services/openai';
 import { supabaseService } from './services/supabase';
-import { UserSettings } from './types';
+import { UserSettings, VoiceConfig } from './types';
 import './index.css';
 
 export const App: React.FC = () => {
@@ -19,10 +19,39 @@ export const App: React.FC = () => {
   const [voiceManager] = useState(() => new VoiceEngineManager());
   const [openAIService] = useState(() => new OpenAIService());
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
+  const [demoMode, setDemoMode] = useState<boolean>(false);
 
   useEffect(() => {
+    // Check if we're in demo mode (for development purposes)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('demo') === 'true') {
+      setDemoMode(true);
+      setIsAuthenticated(true);
+      setUserSettings(createDefaultSettings());
+      setIsLoading(false);
+      return;
+    }
+
     checkAuthStatus();
   }, []);
+
+  const createDefaultSettings = (): UserSettings => {
+    const defaultVoiceConfig: VoiceConfig = {
+      engine: { id: 'web-speech', name: 'Web Speech (Thai Female)', type: 'web-speech', isAvailable: true },
+      voice: 'thai-female',
+      language: 'th-TH',
+      rate: 1.0,
+      pitch: 1.0,
+      volume: 1.0,
+    };
+
+    return {
+      voiceEngine: 'web-speech',
+      voiceConfig: defaultVoiceConfig,
+      apiKeys: {},
+      autoMode: true,
+    };
+  };
 
   const checkAuthStatus = async () => {
     try {
@@ -65,12 +94,16 @@ export const App: React.FC = () => {
 
   const handleLogin = () => {
     setIsAuthenticated(true);
-    loadUserSettings();
+    if (!demoMode) {
+      loadUserSettings();
+    }
   };
 
   const handleLogout = async () => {
     try {
-      await supabaseService.signOut();
+      if (!demoMode) {
+        await supabaseService.signOut();
+      }
       setIsAuthenticated(false);
       setUserSettings(null);
     } catch (error) {
@@ -87,7 +120,24 @@ export const App: React.FC = () => {
   }
 
   if (!isAuthenticated) {
-    return <Login onLogin={handleLogin} />;
+    return (
+      <div>
+        <Login onLogin={handleLogin} />
+        {/* Demo button for development */}
+        <div className="fixed bottom-4 right-4">
+          <button
+            onClick={() => {
+              setDemoMode(true);
+              setIsAuthenticated(true);
+              setUserSettings(createDefaultSettings());
+            }}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg hover:bg-green-700 text-sm"
+          >
+            Demo Mode
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
